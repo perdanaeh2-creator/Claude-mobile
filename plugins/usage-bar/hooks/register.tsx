@@ -42,11 +42,25 @@ export const bar = (percent: number): string => {
 
 const severity = (percent: number) => (percent >= 80 ? 'error' : percent >= 50 ? 'warning' : 'success')
 
+export const summary = (snap: Snapshot | null, t: Tokens, now: number): string => {
+  const parts = (snap?.limits ?? []).map(l => {
+    const until = formatUntil(l.resetsAt, now)
+    return `${LABELS[l.kind] ?? l.kind} ${bar(l.percentUsed)} ${Math.round(l.percentUsed)}%${until === undefined ? '' : ` ⟲ ${until}`}`
+  })
+  if (snap?.contextPercent !== undefined) parts.push(`ctx ${snap.contextPercent}%`)
+  if (t.input + t.output + t.cache > 0) {
+    parts.push(`↑ ${formatCount(t.input)}  ↓ ${formatCount(t.output)}  cache ${formatCount(t.cache)}`)
+  }
+  if (snap?.costUsd !== undefined) parts.push(`$${snap.costUsd.toFixed(2)}`)
+  return parts.length === 0 ? 'No usage figures yet.' : parts.join('\n')
+}
+
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     const usage = await $.session.usage()
     await update($, snapshot, () => toSnapshot(usage))
     $.clock.every(30_000, () => update($, tick, (n: number) => n + 1))
+    await $.command.register({ name: 'usage-bar', description: 'Show rate limits, tokens, context and cost' })
     return next(e)
   })
 
@@ -66,6 +80,10 @@ export const register: Register = on => {
     }
     return next(e)
   })
+
+  on('command.run', { command: 'usage-bar' }, async $ => ({
+    text: summary(await read($, snapshot), await read($, tokens), await $.clock.now()),
+  }))
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     const snap = await read($, snapshot)

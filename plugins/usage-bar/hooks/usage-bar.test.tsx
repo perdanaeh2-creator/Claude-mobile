@@ -1,6 +1,6 @@
 import { expect, mock, test } from 'claude-code/testing'
 
-import { bar, formatCount, formatUntil } from './register'
+import { bar, formatCount, formatUntil, summary } from './register'
 
 const NOW = Date.parse('2026-10-03T09:00:00Z')
 
@@ -27,6 +27,14 @@ test('formats counts, countdowns and bars', () => {
   expect(bar(0)).toBe('────────')
   expect(bar(50)).toBe('━━━━────')
   expect(bar(130)).toBe('━━━━━━━━')
+  expect(summary(null, { input: 0, output: 0, cache: 0 }, NOW)).toBe('No usage figures yet.')
+  expect(
+    summary(
+      { limits: [{ kind: 'five_hour', percentUsed: 20, resetsAt: '2026-10-03T11:40:00Z' }], contextPercent: 34, costUsd: 4.32 },
+      { input: 15_600, output: 3_000, cache: 954_200 },
+      NOW,
+    ),
+  ).toBe('5h ━━────── 20% ⟲ 2h 40m\nctx 34%\n↑ 15.6k  ↓ 3.0k  cache 954.2k\n$4.32')
 })
 
 test('the band shows limits, tokens, context and cost on every surface', async ($, on) => {
