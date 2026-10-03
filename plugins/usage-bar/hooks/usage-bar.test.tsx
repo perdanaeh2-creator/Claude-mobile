@@ -27,14 +27,30 @@ test('formats counts, countdowns and bars', () => {
   expect(bar(0)).toBe('────────')
   expect(bar(50)).toBe('━━━━────')
   expect(bar(130)).toBe('━━━━━━━━')
-  expect(summary(null, { input: 0, output: 0, cache: 0 }, NOW)).toBe('No usage figures yet.')
+  expect(summary(null, { input: 0, output: 0, cache: 0 }, NOW)).toBe('Belum ada data pemakaian.')
   expect(
     summary(
-      { limits: [{ kind: 'five_hour', percentUsed: 20, resetsAt: '2026-10-03T11:40:00Z' }], contextPercent: 34, costUsd: 4.32 },
-      { input: 15_600, output: 3_000, cache: 954_200 },
+      {
+        limits: [
+          { kind: 'five_hour', percentUsed: 52, resetsAt: '2026-10-03T10:38:00Z' },
+          { kind: 'seven_day', percentUsed: 57, resetsAt: '2026-10-06T10:00:00Z' },
+        ],
+        contextPercent: 15,
+        costUsd: 2.71,
+      },
+      { input: 11_700, output: 6_700, cache: 1_000_000 },
       NOW,
     ),
-  ).toBe('5h ━━────── 20% ⟲ 2h 40m\nctx 34%\n↑ 15.6k  ↓ 3.0k  cache 954.2k\n$4.32')
+  ).toBe(
+    [
+      'Pemakaian',
+      'Limit 5 jam   ━━━━────  52%  reset 1j 38m',
+      'Limit 7 hari  ━━━━━───  57%  reset 3h 1j',
+      'Konteks       15%',
+      'Token         ↑ 11.7k  ↓ 6.7k  cache 1.0M',
+      'Biaya         $2.71',
+    ].join('\n'),
+  )
 })
 
 test('the band shows limits, tokens, context and cost on every surface', async ($, on) => {

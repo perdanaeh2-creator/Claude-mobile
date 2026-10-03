@@ -24,15 +24,20 @@ const toSnapshot = (u: Pick<SessionUsage, 'context' | 'rateLimits' | 'cost'>): S
 export const formatCount = (n: number): string =>
   n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)}M` : n >= 1000 ? `${(n / 1000).toFixed(1)}k` : `${n}`
 
-export const formatUntil = (resetsAt: string | undefined, now: number): string | undefined => {
+type Units = { day: string; hour: string; minute: string }
+const EN: Units = { day: 'd', hour: 'h', minute: 'm' }
+// hari, jam, menit
+const ID: Units = { day: 'h', hour: 'j', minute: 'm' }
+
+export const formatUntil = (resetsAt: string | undefined, now: number, u: Units = EN): string | undefined => {
   const at = resetsAt === undefined ? NaN : Date.parse(resetsAt)
   if (Number.isNaN(at)) return undefined
   const minutes = Math.max(0, Math.round((at - now) / 60_000))
   const days = Math.floor(minutes / 1440)
   const hours = Math.floor((minutes % 1440) / 60)
-  if (days > 0) return `${days}d ${hours}h`
-  if (hours > 0) return `${hours}h ${minutes % 60}m`
-  return `${minutes}m`
+  if (days > 0) return `${days}${u.day} ${hours}${u.hour}`
+  if (hours > 0) return `${hours}${u.hour} ${minutes % 60}${u.minute}`
+  return `${minutes}${u.minute}`
 }
 
 export const bar = (percent: number): string => {
@@ -42,17 +47,27 @@ export const bar = (percent: number): string => {
 
 const severity = (percent: number) => (percent >= 80 ? 'error' : percent >= 50 ? 'warning' : 'success')
 
+const SUMMARY_LABELS: Record<string, string> = {
+  five_hour: 'Limit 5 jam',
+  seven_day: 'Limit 7 hari',
+  spend_limit: 'Limit biaya',
+}
+const LABEL_WIDTH = 13
+
+const row = (label: string, value: string) => `${label.padEnd(LABEL_WIDTH)} ${value}`
+
 export const summary = (snap: Snapshot | null, t: Tokens, now: number): string => {
-  const parts = (snap?.limits ?? []).map(l => {
-    const until = formatUntil(l.resetsAt, now)
-    return `${LABELS[l.kind] ?? l.kind} ${bar(l.percentUsed)} ${Math.round(l.percentUsed)}%${until === undefined ? '' : ` ⟲ ${until}`}`
+  const rows = (snap?.limits ?? []).map(l => {
+    const until = formatUntil(l.resetsAt, now, ID)
+    const percent = `${Math.round(l.percentUsed)}%`.padStart(4)
+    return row(SUMMARY_LABELS[l.kind] ?? l.kind, `${bar(l.percentUsed)} ${percent}${until === undefined ? '' : `  reset ${until}`}`)
   })
-  if (snap?.contextPercent !== undefined) parts.push(`ctx ${snap.contextPercent}%`)
+  if (snap?.contextPercent !== undefined) rows.push(row('Konteks', `${snap.contextPercent}%`))
   if (t.input + t.output + t.cache > 0) {
-    parts.push(`↑ ${formatCount(t.input)}  ↓ ${formatCount(t.output)}  cache ${formatCount(t.cache)}`)
+    rows.push(row('Token', `↑ ${formatCount(t.input)}  ↓ ${formatCount(t.output)}  cache ${formatCount(t.cache)}`))
   }
-  if (snap?.costUsd !== undefined) parts.push(`$${snap.costUsd.toFixed(2)}`)
-  return parts.length === 0 ? 'No usage figures yet.' : parts.join('\n')
+  if (snap?.costUsd !== undefined) rows.push(row('Biaya', `$${snap.costUsd.toFixed(2)}`))
+  return rows.length === 0 ? 'Belum ada data pemakaian.' : ['Pemakaian', ...rows].join('\n')
 }
 
 export const register: Register = on => {
